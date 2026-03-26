@@ -285,3 +285,4 @@ C:\Users\flyma\Desktop\Creative Shrimp\TowerTapes\obj\Release\net9.0-windows\win
 C:\Users\flyma\Desktop\Creative Shrimp\TowerTapes\obj\Release\net9.0-windows\win-x64\TowerTapes.pdb
 C:\Users\flyma\Desktop\Creative Shrimp\TowerTapes\obj\Release\net9.0-windows\win-x64\TowerTapes.genruntimeconfig.cache
 C:\Users\flyma\Desktop\Creative Shrimp\TowerTapes\obj\Release\net9.0-windows\win-x64\ref\TowerTapes.dll
+C:\Users\flyma\Desktop\Creative Shrimp\TowerTapes\obj\Release\net9.0-windows\win-x64\TowerTapes.sourcelink.json

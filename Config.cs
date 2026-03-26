@@ -12,7 +12,7 @@ public class Config
     public bool PttEnabled { get; set; }
     public string PttKey { get; set; } = "Oemtilde";
     public string? MicDeviceId { get; set; }
-    public int OpusBitrateKbps { get; set; } = 24;
+    public int OpusBitrateKbps { get; set; } = 8;
     public int MaxStorageMB { get; set; } = 1024;
     public int RetentionDays { get; set; } = 90;
 

@@ -147,12 +147,12 @@ public sealed class AudioRecorder : IDisposable
         var fmt = _micCapture!.WaveFormat;
         var mono = ToMono48k(e.Buffer, e.BytesRecorded, fmt);
 
-        bool muted = _config.PttEnabled && !IsPttDown();
-
+        // Always enqueue real mic data — PTT gating is applied in the
+        // encoding loop where GetAsyncKeyState is reliable (own thread).
         lock (_lock)
         {
             foreach (float s in mono)
-                _micSamples.Enqueue(muted ? 0f : s);
+                _micSamples.Enqueue(s);
         }
     }
 
@@ -253,9 +253,14 @@ public sealed class AudioRecorder : IDisposable
 
     private void EncodeFrames(byte[] outBuf)
     {
+        // Check PTT from the encoding thread where GetAsyncKeyState is reliable
+        bool micMuted = _config.PttEnabled && !IsPttDown();
+
         lock (_lock)
         {
-            int available = Math.Min(_micSamples.Count, _sysSamples.Count);
+            // Use Max so encoding proceeds even if one capture stream lags or
+            // fails entirely — the lagging channel is padded with silence.
+            int available = Math.Max(_micSamples.Count, _sysSamples.Count);
             while (available >= FRAME)
             {
                 var pcm = new short[FRAME * 2];
@@ -263,7 +268,7 @@ public sealed class AudioRecorder : IDisposable
                 {
                     float mic = _micSamples.Count > 0 ? _micSamples.Dequeue() : 0f;
                     float sys = _sysSamples.Count > 0 ? _sysSamples.Dequeue() : 0f;
-                    pcm[i * 2] = Clamp16(mic);
+                    pcm[i * 2] = Clamp16(micMuted ? 0f : mic);
                     pcm[i * 2 + 1] = Clamp16(sys);
                 }
 
@@ -277,6 +282,16 @@ public sealed class AudioRecorder : IDisposable
 
                 available = Math.Max(_micSamples.Count, _sysSamples.Count);
             }
+
+            // Prevent unbounded queue growth if one stream is much faster —
+            // trim the larger queue to at most 1 second of excess over the smaller.
+            const int MAX_DRIFT = RATE; // 1 second
+            if (_micSamples.Count > _sysSamples.Count + MAX_DRIFT)
+                while (_micSamples.Count > _sysSamples.Count + MAX_DRIFT)
+                    _micSamples.Dequeue();
+            else if (_sysSamples.Count > _micSamples.Count + MAX_DRIFT)
+                while (_sysSamples.Count > _micSamples.Count + MAX_DRIFT)
+                    _sysSamples.Dequeue();
         }
     }
 
