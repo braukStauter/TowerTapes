@@ -25,6 +25,7 @@ public sealed class AudioRecorder : IDisposable
     private const int FRAME = 960; // 20ms at 48kHz
 
     public bool IsRecording => _recording;
+    public bool ForceMicOpen { get; set; }
     public string? CurrentFile { get; private set; }
     public string? LastError { get; private set; }
 
@@ -254,7 +255,7 @@ public sealed class AudioRecorder : IDisposable
     private void EncodeFrames(byte[] outBuf)
     {
         // Check PTT from the encoding thread where GetAsyncKeyState is reliable
-        bool micMuted = _config.PttEnabled && !IsPttDown();
+        bool micMuted = !ForceMicOpen && _config.PttEnabled && !IsPttDown();
 
         lock (_lock)
         {

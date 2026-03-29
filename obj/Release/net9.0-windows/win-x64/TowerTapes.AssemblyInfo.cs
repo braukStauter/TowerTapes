@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("TowerTapes")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f86742840e2ea720a77b231e6b1c07f715af29f5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f7cb6b8cd67533ec5a6f05a8a212061d1ce91161")]
 [assembly: System.Reflection.AssemblyProductAttribute("TowerTapes")]
 [assembly: System.Reflection.AssemblyTitleAttribute("TowerTapes")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

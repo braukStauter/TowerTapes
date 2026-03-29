@@ -23,6 +23,8 @@ public sealed class MainForm : Form
     private List<RecordingInfo> _recordings = [];
     private bool _suppressShow = true;
     private Bitmap? _logoBitmap;
+    private bool _isTrainingRecording;
+    private ToolStripMenuItem _trainingMenuItem = null!;
 
     public MainForm()
     {
@@ -78,6 +80,7 @@ public sealed class MainForm : Form
 
     private void OnCrcStarted()
     {
+        if (_isTrainingRecording) return; // training takes priority
         SetTrayIcon(Color.FromArgb(46, 204, 113)); // green
         _recordingStart = DateTime.Now;
         var path = _storage.GenerateFilePath(_recordingStart);
@@ -87,6 +90,7 @@ public sealed class MainForm : Form
 
     private void OnCrcStopped()
     {
+        if (_isTrainingRecording) return; // training takes priority
         _recorder.StopRecording();
         SetTrayIcon(Color.FromArgb(149, 165, 166)); // gray
         _tray.Text = "TowerTapes - Idle";
@@ -94,12 +98,59 @@ public sealed class MainForm : Form
         if (Visible) RefreshRecordings();
     }
 
+    // --- Training recording ---
+
+    private void ToggleTrainingRecording()
+    {
+        if (_isTrainingRecording)
+            StopTrainingRecording();
+        else
+            StartTrainingRecording();
+    }
+
+    private void StartTrainingRecording()
+    {
+        if (_recorder.IsRecording)
+            _recorder.StopRecording(); // stop any CRC-triggered recording first
+
+        _isTrainingRecording = true;
+        _recorder.ForceMicOpen = true;
+        _recordingStart = DateTime.Now;
+        var path = _storage.GenerateFilePath(_recordingStart);
+        _recorder.StartRecording(path);
+
+        SetTrayIcon(Color.FromArgb(230, 126, 34)); // orange
+        _tray.Text = "TowerTapes - Training";
+        _trainingMenuItem.Text = "Stop Training Recording";
+    }
+
+    private void StopTrainingRecording()
+    {
+        _recorder.StopRecording();
+        _recorder.ForceMicOpen = false;
+        _isTrainingRecording = false;
+
+        _trainingMenuItem.Text = "Start Training Recording";
+        _storage.Cleanup();
+        if (Visible) RefreshRecordings();
+
+        // If CRC is running, resume normal recording
+        if (_watcher.IsCrcRunning)
+            OnCrcStarted();
+        else
+        {
+            SetTrayIcon(Color.FromArgb(149, 165, 166)); // gray
+            _tray.Text = "TowerTapes - Idle";
+        }
+    }
+
     private void UpdateTrayTooltip(object? s, EventArgs e)
     {
         if (_recorder.IsRecording)
         {
             var elapsed = DateTime.Now - _recordingStart;
-            var text = $"TowerTapes - Recording ({elapsed:hh\\:mm\\:ss})";
+            var label = _isTrainingRecording ? "Training" : "Recording";
+            var text = $"TowerTapes - {label} ({elapsed:hh\\:mm\\:ss})";
             if (text.Length > 63) text = text[..63]; // NotifyIcon limit
             _tray.Text = text;
         }
@@ -131,6 +182,10 @@ public sealed class MainForm : Form
         _tray.Text = "TowerTapes - Idle";
 
         var menu = new ContextMenuStrip();
+        _trainingMenuItem = new ToolStripMenuItem("Start Training Recording");
+        _trainingMenuItem.Click += (_, _) => ToggleTrainingRecording();
+        menu.Items.Add(_trainingMenuItem);
+        menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Show Recordings", null, (_, _) => ShowForm());
         menu.Items.Add("Settings", null, (_, _) => ShowSettings());
         menu.Items.Add(new ToolStripSeparator());
@@ -149,27 +204,11 @@ public sealed class MainForm : Form
             using (var g = Graphics.FromImage(bmp))
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 g.Clear(Color.Transparent);
-
-                if (_logoBitmap != null)
-                {
-                    // Draw the logo scaled to 16x16
-                    g.DrawImage(_logoBitmap, 0, 0, 16, 16);
-                    // Overlay a small status dot in the bottom-right corner
-                    using var brush = new SolidBrush(statusColor);
-                    g.FillEllipse(brush, 10, 10, 6, 6);
-                    using var pen = new Pen(Color.FromArgb(160, 0, 0, 0), 0.8f);
-                    g.DrawEllipse(pen, 10, 10, 6, 6);
-                }
-                else
-                {
-                    // Fallback: plain colored circle if logo failed to load
-                    using var brush = new SolidBrush(statusColor);
-                    g.FillEllipse(brush, 1, 1, 13, 13);
-                    using var pen = new Pen(Color.FromArgb(80, 0, 0, 0), 1f);
-                    g.DrawEllipse(pen, 1, 1, 13, 13);
-                }
+                using var brush = new SolidBrush(statusColor);
+                g.FillEllipse(brush, 1, 1, 13, 13);
+                using var pen = new Pen(Color.FromArgb(80, 0, 0, 0), 1f);
+                g.DrawEllipse(pen, 1, 1, 13, 13);
             }
             hicon = bmp.GetHicon();
         }
@@ -275,7 +314,8 @@ public sealed class MainForm : Form
         long total = _storage.GetTotalSizeBytes();
         long max = (long)_config.MaxStorageMB * 1024 * 1024;
         _storageLabel.Text = $"Storage: {FormatSize(total)} / {FormatSize(max)}";
-        _statusLabel.Text = _recorder.IsRecording
+        _statusLabel.Text = _isTrainingRecording
+            ? "Status: Training Recording" : _recorder.IsRecording
             ? "Status: Recording" : _watcher.IsCrcRunning
             ? "Status: CRC detected" : "Status: Idle — waiting for CRC.exe";
     }
@@ -515,6 +555,8 @@ public sealed class MainForm : Form
 
     private void ExitApp()
     {
+        if (_isTrainingRecording) _isTrainingRecording = false;
+        _recorder.ForceMicOpen = false;
         _recorder.StopRecording();
         _tray.Visible = false;
         Application.Exit();
